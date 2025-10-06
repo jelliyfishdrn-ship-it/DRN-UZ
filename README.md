@@ -1,2 +1,0 @@
-# DRN-UZ
-meduza
