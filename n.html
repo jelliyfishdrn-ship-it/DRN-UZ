@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>UZBTOON — Dark Webtoon (All-in-one)</title>
+
+<!-- Fonts (optional) -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --bg:#05060a; --panel:#071226; --card:#08152b; --muted:#9aa4b2; --accent:#7c3aed; --accent2:#fb923c; --text:#e6eef8;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; font-family:Inter,system-ui,Arial; background:linear-gradient(180deg,var(--bg),#020203);
+  color:var(--text); -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+}
+
+/* Header */
+.header{
+  display:flex; justify-content:space-between; align-items:center; gap:12px;
+  padding:14px 18px; background:linear-gradient(90deg,var(--panel), #041126);
+  border-bottom:1px solid rgba(255,255,255,0.03);
+}
+.brand{font-weight:800;font-size:20px}
+.controls{display:flex;gap:8px;align-items:center}
+.search{padding:8px 10px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:var(--text);min-width:220px}
+
+/* Layout */
+.container{max-width:1150px;margin:20px auto;padding:0 16px}
+.section-title{margin:12px 0;font-size:18px;font-weight:700}
+
+/* Grid/cards */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
+.card{background:linear-gradient(180deg,var(--card),#061224);border-radius:12px;padding:12px;box-shadow:0 8px 30px rgba(0,0,0,0.6);display:flex;flex-direction:column}
+.cover{width:100%;height:300px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,0.03)}
+.meta{margin-top:10px;display:flex;justify-content:space-between;align-items:center}
+.title{font-weight:700}
+.author{color:var(--muted);font-size:13px}
+.tags{color:var(--muted);font-size:13px;margin-top:8px}
+.card-foot{margin-top:10px;display:flex;justify-content:space-between;align-items:center}
+.small{font-size:13px;color:var(--muted)}
+.btn{padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:var(--text);cursor:pointer}
+.btn.primary{background:linear-gradient(90deg,var(--accent),var(--accent2));border:0;color:#021}
+
+/* footer */
+.footer{padding:18px;text-align:center;color:var(--muted);font-size:13px}
+
+/* modal common */
+.modal-back{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;padding:12px;z-index:90}
+.modal{background:linear-gradient(180deg,#071227,#04101a);border-radius:12px;padding:16px;width:100%;max-width:980px;color:var(--text);box-shadow:0 10px 40px rgba(0,0,0,0.8);border:1px solid rgba(255,255,255,0.03)}
+.input,textarea,select{padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:var(--text);width:100%}
+textarea{min-height:100px}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+
+/* reader */
+.reader-pages img{width:100%;display:block;margin:8px 0;border-radius:6px}
+.pdf-frame{width:100%;height:72vh;border-radius:8px;border:1px solid rgba(255,255,255,0.03);background:white}
+
+/* small helpers */
+.hint{color:var(--muted);font-size:13px}
+.small-btn{background:transparent;border:1px solid rgba(255,255,255,0.04);padding:6px 8px;border-radius:8px;color:var(--text);cursor:pointer}
+
+/* responsive */
+@media(max-width:700px){
+  .cover{height:220px}
+  .modal{max-width:95%}
+}
+</style>
+
+<!-- Libraries -->
+<!-- pdf.js (for extracting text from PDF) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.6.172/pdf.min.js"></script>
+<!-- jsPDF for creating translated PDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="brand">UZBTOON</div>
+  <div class="controls">
+    <input id="search" class="search" placeholder="Qidirish — sarlavha, muallif, tag..." />
+    <button id="openUploadBtn" class="btn primary">Yuklash</button>
+    <button id="openAdminBtn" class="btn">Admin</button>
+  </div>
+</header>
+
+<!-- MAIN -->
+<main class="container">
+  <div class="section-title">Yangi va tavsiya etilgan</div>
+  <div id="grid" class="grid"></div>
+  <div id="empty" class="hint" style="display:none;margin-top:12px">Hech qanday serial topilmadi.</div>
+</main>
+
+<footer class="footer">UZBTOON — demo. Tarjima uchun internet kerak.</footer>
+
+<!-- UPLOAD MODAL -->
+<div id="uploadModal" class="modal-back" style="display:none">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h3 style="margin:0">Yangi serial yuklash</h3>
+      <div><button id="closeUpload" class="btn">Yopish</button></div>
+    </div>
+
+    <div style="margin-top:12px">
+      <div class="row">
+        <input id="uTitle" class="input" placeholder="Sarlavha (majburiy)"/>
+        <input id="uAuthor" class="input" placeholder="Muallif"/>
+        <input id="uTags" class="input" placeholder="tag1, tag2"/>
+      </div>
+
+      <div style="margin-top:10px">
+        <label class="hint">Cover (rasm fayl yoki URL)</label>
+        <input id="uCoverFile" type="file" accept="image/*"/>
+        <input id="uCoverUrl" class="input" placeholder="yoki cover rasm URL"/>
+      </div>
+
+      <div style="margin-top:10px">
+        <label class="hint">Butun serial sifatida PDF yuklash</label>
+        <input id="uPdfFile" type="file" accept="application/pdf"/>
+      </div>
+
+      <div style="margin-top:10px">
+        <label class="hint">Yoki sahifalar (bir nechta rasm tanlang)</label>
+        <input id="uPages" type="file" accept="image/*" multiple/>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
+        <button id="saveUpload" class="btn primary">Saqlash</button>
+      </div>
+      <div class="hint" style="margin-top:8px">Fayllar IndexedDBda saqlanadi; brauzer limitlari bo‘lishi mumkin.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN MODAL -->
+<div id="adminModal" class="modal-back" style="display:none">
+  <div class="modal" style="max-width:520px">
+    <h3 style="margin:0">Admin</h3>
+    <div style="margin-top:10px" class="row">
+      <!-- login area (no default value shown) -->
+      <div style="flex:1">
+        <label class="hint">Parol bilan kirish</label>
+        <input id="adminPwd" class="input" type="password" placeholder="Admin parol" />
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
+          <button id="adminLogin" class="btn primary">Kirish</button>
+        </div>
+      </div>
+      <!-- change password area -->
+      <div style="flex:1">
+        <label class="hint">Yangi parol o‘rnatish (faqat admin)</label>
+        <input id="changePwd" class="input" type="password" placeholder="Yangi parol" />
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
+          <button id="changePwdBtn" class="btn">Parolni o‘zgartirish</button>
+        </div>
+        <div class="hint" style="margin-top:8px">Admin bo‘lsangiz bu yerdan parolni o‘zgartiring. (Default parol serverda yo‘q)</div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:10px">
+      <button id="adminClose" class="btn">Yopish</button>
+    </div>
+  </div>
+</div>
+
+<!-- READER MODAL -->
+<div id="readerModal" class="modal-back" style="display:none">
+  <div class="modal" id="readerInner">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <h3 id="rTitle" style="margin:0"></h3>
+        <div id="rAuthor" class="hint"></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="translatePdfBtn" class="btn small-btn">PDFni tarjima qil</button>
+        <button id="downloadBtn" class="btn">Yuklab olish</button>
+        <button id="closeReader" class="btn">Yopish</button>
+      </div>
+    </div>
+
+    <div id="readerContent" style="margin-top:12px"></div>
+    <div id="readerNav" style="margin-top:12px;display:flex;justify-content:center;gap:8px"></div>
+
+    <div id="translateArea" style="margin-top:12px;display:none">
+      <h4>Tarjima natijasi (ozbekcha)</h4>
+      <div id="translateResult" class="hint" style="white-space:pre-wrap;max-height:40vh;overflow:auto;background:rgba(255,255,255,0.02);padding:8px;border-radius:8px"></div>
+      <div style="display:flex;justify-content:flex-end;margin-top:8px">
+        <button id="downloadTranslatedPdf" class="btn primary">Tarjima PDF sifatida yuklab olish</button>
+      </div>
+    </div>
+
+    <div id="manualTranslate" style="margin-top:12px;display:none">
+      <h4>Rasmli sahifa uchun qo‘l bilan tarjima</h4>
+      <div id="manualList"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* UZBTOON — one-file app
+   Features:
+   - metadata in localStorage (KEY_COMICS)
+   - blob files in IndexedDB (DB_NAME / STORE_NAME)
+   - admin login (password hashed in localStorage KEY_ADMIN)
+   - admin can change password via UI
+   - open PDF in-site and extract text (pdf.js) and translate via LibreTranslate public API
+   - create simple translated PDF via jsPDF from translated text
+   - for image pages allow manual translation input per page
+*/
+
+/* ---------- Config & Keys ---------- */
+const KEY_COMICS = 'uzbtoon_comics_v3';
+const KEY_ADMIN = 'uzbtoon_admin_v3';
+const DB_NAME = 'uzbtoon_files_db';
+const STORE_NAME = 'files';
+const LIBRE_TRANSLATE_URL = 'https://libretranslate.de/translate'; // public instance, may be rate-limited
+
+/* ---------- IndexedDB helpers ---------- */
+let db = null;
+function openDB(){ return new Promise((res,rej)=>{
+  const rq = indexedDB.open(DB_NAME, 1);
+  rq.onupgradeneeded = ()=> {
+    rq.result.createObjectStore(STORE_NAME, { keyPath: 'id' });
+  };
+  rq.onsuccess = ()=> { db = rq.result; res(db); };
+  rq.onerror = ()=> rej(rq.error);
+});}
+
+function idbPut(id, blob){ return new Promise((res,rej)=>{
+  const tx = db.transaction(STORE_NAME,'readwrite');
+  tx.objectStore(STORE_NAME).put({id, blob});
+  tx.oncomplete = ()=> res(true);
+  tx.onerror = ()=> rej(tx.error);
+});}
+
+function idbGet(id){ return new Promise((res,rej)=>{
+  const tx = db.transaction(STORE_NAME,'readonly');
+  const rq = tx.objectStore(STORE_NAME).get(id);
+  rq.onsuccess = ()=> { res(rq.result ? rq.result.blob : null); };
+  rq.onerror = ()=> rej(rq.error);
+});}
+
+function idbDelete(id){ return new Promise((res,rej)=>{
+  const tx = db.transaction(STORE_NAME,'readwrite');
+  const rq = tx.objectStore(STORE_NAME).delete(id);
+  rq.onsuccess = ()=> res(true); rq.onerror = ()=> rej(rq.error);
+});}
+
+/* ---------- util ---------- */
+function genId(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function simpleHash(s){ let h=0; for(let i=0;i<s.length;i++) h=(h<<5)-h + s.charCodeAt(i); return String(Math.abs(h)); }
+function escapeHtml(s){ return String(s||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+function fileToDataUrl(file){ return new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=()=>rej(); fr.readAsDataURL(file); }); }
+function downloadBlob(blob, filename){ const a = document.createElement('a'); const url = URL.createObjectURL(blob); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),10000); }
+
+/* ---------- init ---------- */
+async function init(){
+  await openDB().catch(e=>console.error('IDB open failed',e));
+  if(!localStorage.getItem(KEY_COMICS)){
+    const sample = [{
+      id: genId(), title: "Oy ostidagi sehr", author: "Kamoni",
+      tags: ["fantastika","sehr"],
+      cover: "https://placehold.co/800x1200?text=Oy+Ostidagi+Sehr",
+      chapters: [{id: genId(), title: "1-bob", pageIds: []}],
+      pdfFileId: null, likes: 12, createdAt: Date.now()
+    }];
+    localStorage.setItem(KEY_COMICS, JSON.stringify(sample));
+  }
+  if(!localStorage.getItem(KEY_ADMIN)){
+    // set blank password hash to force admin set-up; no default shown
+    localStorage.setItem(KEY_ADMIN, JSON.stringify({hash: simpleHash('')})); // empty hash
+  }
+  renderGrid();
+}
+init();
+
+/* ---------- data helpers ---------- */
+function loadComics(){ try{ return JSON.parse(localStorage.getItem(KEY_COMICS)||'[]'); }catch(e){return [];} }
+function saveComics(arr){ localStorage.setItem(KEY_COMICS, JSON.stringify(arr)); }
+
+/* ---------- UI refs ---------- */
+const grid = document.getElementById('grid');
+const search = document.getElementById('search');
+const openUploadBtn = document.getElementById('openUploadBtn');
+const uploadModal = document.getElementById('uploadModal');
+const closeUpload = document.getElementById('closeUpload');
+const saveUpload = document.getElementById('saveUpload');
+const uTitle = document.getElementById('uTitle');
+const uAuthor = document.getElementById('uAuthor');
+const uTags = document.getElementById('uTags');
+const uCoverFile = document.getElementById('uCoverFile');
+const uCoverUrl = document.getElementById('uCoverUrl');
+const uPdfFile = document.getElementById('uPdfFile');
+const uPages = document.getElementById('uPages');
+
+const adminModal = document.getElementById('adminModal');
+const openAdminBtn = document.getElementById('openAdminBtn');
+const adminLogin = document.getElementById('adminLogin');
+const adminCancel = document.getElementById('adminClose');
+const adminPwd = document.getElementById('adminPwd');
+const changePwd = document.getElementById('changePwd');
+const changePwdBtn = document.getElementById('changePwdBtn');
+
+const readerModal = document.getElementById('readerModal');
+const readerContent = document.getElementById('readerContent');
+const readerNav = document.getElementById('readerNav');
+const rTitle = document.getElementById('rTitle');
+const rAuthor = document.getElementById('rAuthor');
+const closeReader = document.getElementById('closeReader');
+const downloadBtn = document.getElementById('downloadBtn');
+const translatePdfBtn = document.getElementById('translatePdfBtn');
+const translateArea = document.getElementById('translateArea');
+const translateResult = document.getElementById('translateResult');
+const downloadTranslatedPdf = document.getElementById('downloadTranslatedPdf');
+const manualTranslate = document.getElementById('manualTranslate');
+const manualList = document.getElementById('manualList');
+
+/* ---------- event bindings ---------- */
+openUploadBtn.addEventListener('click', ()=> { if(!isAdmin()){ alert('Faqat admin yuklay oladi. Admin kirish bosing.'); return;} uploadModal.style.display='flex'; });
+closeUpload.addEventListener('click', ()=> uploadModal.style.display='none');
+document.getElementById('openAdminBtn').addEventListener('click', ()=> adminModal.style.display='flex');
+adminCancel.addEventListener('click', ()=> adminModal.style.display='none');
+
+search.addEventListener('input', ()=> renderGrid());
+
+adminLogin.addEventListener('click', ()=> {
+  const pwd = (adminPwd.value||'').trim();
+  const adm = JSON.parse(localStorage.getItem(KEY_ADMIN));
+  if(adm && adm.hash === simpleHash(pwd)){
+    sessionStorage.setItem('uzb_admin','1'); adminModal.style.display='none'; alert('Adminga kirdingiz.');
+    renderGrid();
+  } else {
+    alert('Parol noto‘g‘ri. Agar parol hali o‘rnatilmagan bo‘lsa, "Yangi parol o‘rnatish" orqali birinchi parolni o‘rnatishingiz mumkin.');
+  }
+  adminPwd.value='';
+});
+
+changePwdBtn.addEventListener('click', ()=> {
+  const newp = (changePwd.value||'').trim();
+  if(!newp) return alert('Yangi parol bo‘sh bo‘lishi mumkin emas.');
+  const adm = { hash: simpleHash(newp) };
+  localStorage.setItem(KEY_ADMIN, JSON.stringify(adm));
+  changePwd.value='';
+  alert('Admin parol o‘zgartirildi. Yangi parol bilan tizimga kirishingiz mumkin.');
+});
+
+/* Upload save */
+saveUpload.addEventListener('click', async ()=>{
+  const title = uTitle.value.trim(); if(!title) return alert('Sarlavha kiriting');
+  const author = uAuthor.value.trim() || 'Anon';
+  const tags = uTags.value.split(',').map(t=>t.trim()).filter(Boolean);
+  // cover
+  let coverUrl = uCoverUrl.value.trim() || null;
+  if(!coverUrl && uCoverFile.files && uCoverFile.files[0]){
+    coverUrl = await fileToDataUrl(uCoverFile.files[0]);
+  }
+  // pdf
+  let pdfId = null;
+  if(uPdfFile.files && uPdfFile.files[0]){
+    const f = uPdfFile.files[0];
+    const id = genId();
+    await idbPut(id, f);
+    pdfId = id;
+  }
+  // pages
+  const pageFiles = Array.from(uPages.files || []);
+  const pageIds = [];
+  for(const f of pageFiles){
+    const id = genId();
+    await idbPut(id, f);
+    pageIds.push(id);
+  }
+
+  const comics = loadComics();
+  const comic = { id: genId(), title, author, tags, cover: coverUrl || 'https://placehold.co/800x1200?text=Cover', chapters: [], pdfFileId: pdfId, pageIds: pageIds, likes:0, createdAt: Date.now() };
+  if(pageIds.length) comic.chapters.push({ id: genId(), title:'1-bob', pageIds });
+  comics.unshift(comic);
+  saveComics(comics);
+  uploadModal.style.display='none';
+  // reset
+  uTitle.value=''; uAuthor.value=''; uTags.value=''; uCoverFile.value=''; uCoverUrl.value=''; uPdfFile.value=''; uPages.value='';
+  renderGrid();
+  alert('Serial saqlandi.');
+});
+
+/* render grid */
+async function renderGrid(){
+  const q = (search.value||'').toLowerCase().trim();
+  const comics = loadComics();
+  grid.innerHTML = '';
+  const filtered = comics.filter(c=>{
+    if(!q) return true;
+    return (c.title||'').toLowerCase().includes(q) || (c.author||'').toLowerCase().includes(q) || (c.tags||[]).join(',').toLowerCase().includes(q);
+  });
+  if(filtered.length===0) document.getElementById('empty').style.display='block'; else document.getElementById('empty').style.display='none';
+  for(const c of filtered){
+    const el = document.createElement('div'); el.className='card';
+    el.innerHTML = `
+      <img class="cover" src="${escapeHtml(c.cover)}" alt="${escapeHtml(c.title)}"/>
+      <div class="meta">
+        <div><div class="title">${escapeHtml(c.title)}</div><div class="author">${escapeHtml(c.author||'Anon')}</div></div>
+        <div style="text-align:right"><div class="small">${(c.chapters||[]).length} bob</div><div class="small">${c.likes} like</div></div>
+      </div>
+      <div class="tags">${escapeHtml((c.tags||[]).join(', '))}</div>
+      <div class="card-foot">
+        <div><button class="btn primary readBtn">O'qish</button></div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn small-btn like">❤️</button>
+          ${isAdmin() ? '<button class="btn small-btn deleteBtn" style="border:1px solid rgba(255,255,255,0.04)">Oʻchirish</button>' : ''}
+        </div>
+      </div>
+    `;
+    el.querySelector('.readBtn').addEventListener('click', ()=> openReader(c.id));
+    el.querySelector('.like').addEventListener('click', ()=> { c.likes=(c.likes||0)+1; saveComics(comics); renderGrid(); });
+    const delBtn = el.querySelector('.deleteBtn'); if(delBtn){
+      delBtn.addEventListener('click', async ()=> {
+        if(!confirm('Haqiqatan ham o\'chirasizmi?')) return;
+        if(c.pdfFileId) await idbDelete(c.pdfFileId);
+        if(c.pageIds && c.pageIds.length) for(const pid of c.pageIds) await idbDelete(pid);
+        const newArr = loadComics().filter(x=>x.id!==c.id);
+        saveComics(newArr); renderGrid();
+      });
+    }
+    grid.appendChild(el);
+  }
+}
+
+/* open reader */
+async function openReader(comicId){
+  const comics = loadComics(); const c = comics.find(x=>x.id===comicId); if(!c) return;
+  rTitle.textContent = c.title; rAuthor.textContent = c.author + (c.tags && c.tags.length ? ' • ' + c.tags.join(', ') : '');
+  readerContent.innerHTML = ''; readerNav.innerHTML = ''; translateArea.style.display='none'; translateResult.textContent=''; manualTranslate.style.display='none'; manualList.innerHTML='';
+  // PDF case
+  if(c.pdfFileId){
+    const blob = await idbGet(c.pdfFileId);
+    if(!blob){ readerContent.innerHTML = '<div class="hint">PDF topilmadi.</div>'; readerModal.style.display='flex'; return; }
+    const url = URL.createObjectURL(blob);
+    readerContent.innerHTML = `<object class="pdf-frame" data="${url}" type="application/pdf">PDFni ko‘rish brauzeri qo‘llab-quvvatlamaydi. <a href="${url}" target="_blank">Bu yerga bosib yuklab oling</a></object>`;
+    downloadBtn.onclick = ()=> downloadBlob(blob, (c.title||'comic') + '.pdf');
+    // enable PDF translate button
+    translatePdfBtn.style.display='inline-block';
+    translatePdfBtn.onclick = ()=> translatePdfBlob(blob, c.title);
+    downloadTranslatedPdf.onclick = ()=> {
+      if(!translateResult.innerText) return alert('Avval tarjima qiling.');
+      createPdfFromText(translateResult.innerText, c.title + '-uz.pdf');
+    };
+    readerModal.style.display='flex';
+    return;
+  }
+  // images/pages
+  let pageIds = [];
+  if(c.chapters && c.chapters.length) pageIds = c.chapters[0].pageIds || [];
+  else if(c.pageIds) pageIds = c.pageIds || [];
+  if(!pageIds || pageIds.length===0){ readerContent.innerHTML = '<div class="hint">Sahifalar yuklanmagan.</div>'; readerModal.style.display='flex'; return; }
+  // navigation
+  let idx = 0;
+  const show = async (i)=>{
+    const blob = await idbGet(pageIds[i]); if(!blob){ readerContent.innerHTML = '<div class="hint">Rasm topilmadi.</div>'; return; }
+    const url = URL.createObjectURL(blob);
+    readerContent.innerHTML = `<div class="reader-pages"><img src="${url}" alt="page"/></div>`;
+    downloadBtn.onclick = ()=> downloadBlob(blob, `${c.title || 'page'}-${i+1}.jpg`);
+    // manual translate input for this page
+    manualTranslate.style.display='block';
+    manualList.innerHTML = `
+      <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+        <textarea id="manualText" placeholder="Bu rasmdagi matnni shu yerga kiriting (so‘ng tarjima tugmasini bosing)" class="input"></textarea>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button id="doManualTranslate" class="btn primary">Tarjima qil (UZ)</button>
+          <button id="saveManual" class="btn">Saqlash tarjima</button>
+        </div>
+      </div>
+      <div id="manualResult" class="hint" style="margin-top:8px"></div>
+    `;
+    document.getElementById('doManualTranslate').onclick = async ()=>{
+      const txt = document.getElementById('manualText').value.trim();
+      if(!txt) return alert('Matn kiriting.');
+      document.getElementById('manualResult').innerText = 'Tarjima qilinmoqda...';
+      try{
+        const tr = await translateText(txt,'uz');
+        document.getElementById('manualResult').innerText = tr;
+      }catch(e){ document.getElementById('manualResult').innerText = 'Tarjima xatosi.'; }
+    };
+    document.getElementById('saveManual').onclick = async ()=>{
+      const tr = document.getElementById('manualResult').innerText.trim();
+      if(!tr) return alert('Avval tarjima qiling yoki matn kiriting.');
+      // save manual translation in comic metadata under chapters[0].manuals = {pageIndex: tr}
+      const comics = loadComics();
+      const found = comics.map(x=>{
+        if(x.id===c.id){
+          x.chapters = x.chapters || [];
+          x.chapters[0] = x.chapters[0] || { id: genId(), title: '1-bob', pageIds: pageIds };
+          x.chapters[0].manuals = x.chapters[0].manuals || {};
+          x.chapters[0].manuals[i] = tr;
+        }
+        return x;
+      });
+      saveComics(found);
+      alert('Tarjima saqlandi (mahalliy).');
+    };
+  };
+  const prevBtn = document.createElement('button'); prevBtn.className='btn'; prevBtn.textContent='⬅ Oldingi';
+  const nextBtn = document.createElement('button'); nextBtn.className='btn'; nextBtn.textContent='Keyingi ➡';
+  prevBtn.onclick = ()=> { if(idx>0){ idx--; show(idx);} };
+  nextBtn.onclick = ()=> { if(idx < pageIds.length-1){ idx++; show(idx);} };
+  readerNav.appendChild(prevBtn); readerNav.appendChild(nextBtn);
+  await show(0);
+  readerModal.style.display='flex';
+}
+
+/* close reader */
+closeReader.addEventListener('click', ()=> { readerModal.style.display='none'; readerContent.innerHTML=''; readerNav.innerHTML=''; translateArea.style.display='none'; manualTranslate.style.display='none'; translateResult.textContent=''; });
+
+/* translate PDF blob using pdf.js to extract text page-by-page, then LibreTranslate */
+async function translatePdfBlob(blob, title){
+  translateArea.style.display='block';
+  translateResult.textContent = 'PDF sahifalari o‘qilmoqda va tarjima qilinmoqda — biroz vaqt olishi mumkin...';
+  try{
+    const arrayBuf = await blob.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({data: arrayBuf}).promise;
+    let fullText = '';
+    for(let p=1;p<=pdf.numPages;p++){
+      const page = await pdf.getPage(p);
+      const txtContent = await page.getTextContent();
+      const strs = txtContent.items.map(i=> (i.str || '')).join(' ');
+      fullText += `\n\n--- Page ${p} ---\n` + strs;
+    }
+    // now translate in chunks (LibreTranslate recommends smaller payloads)
+    const translated = await translateText(fullText, 'uz');
+    translateResult.textContent = translated;
+    // enable download translated pdf
+    downloadTranslatedPdf.onclick = ()=> createPdfFromText(translated, (title||'translated') + '-uz.pdf');
+  }catch(e){
+    console.error(e);
+    translateResult.textContent = 'Tarjima yoki PDF o‘qishda xatolik yuz berdi: ' + (e.message || e);
+  }
+}
+
+/* translate plain text using LibreTranslate public API */
+async function translateText(text, target='uz'){
+  if(!text || !text.trim()) return '';
+  // chunking: keep under ~4000 chars per request to be safe
+  const CHUNK = 3000;
+  const chunks = [];
+  for(let i=0;i<text.length;i+=CHUNK) chunks.push(text.slice(i,i+CHUNK));
+  let out = '';
+  for(const ch of chunks){
+    const resp = await fetch(LIBRE_TRANSLATE_URL, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({q: ch, source:'auto', target})
+    });
+    if(!resp.ok) throw new Error('Translate API error: ' + resp.status);
+    const j = await resp.json();
+    out += j.translatedText + (j.translatedText.endsWith('\n') ? '' : '\n');
+    // small delay to avoid rate limits
+    await new Promise(r=>setTimeout(r,300));
+  }
+  return out;
+}
+
+/* create simple PDF from translated text using jsPDF */
+async function createPdfFromText(text, filename='translated.pdf'){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'pt', format:'a4'});
+  const lineHeight = 14;
+  const margin = 40;
+  const pageWidth = doc.internal.pageSize.getWidth() - margin*2;
+  const words = text.split(/\s+/);
+  let cursorY = margin;
+  let line = '';
+  const fontSize = 12;
+  doc.setFontSize(fontSize);
+  for(const w of words){
+    const testLine = line + (line ? ' ' : '') + w;
+    const testWidth = doc.getTextWidth(testLine);
+    if(testWidth > pageWidth){
+      doc.text(line, margin, cursorY);
+      line = w;
+      cursorY += lineHeight;
+      if(cursorY > doc.internal.pageSize.getHeight() - margin){
+        doc.addPage();
+        cursorY = margin;
+      }
+    } else {
+      line = testLine;
+    }
+  }
+  if(line) doc.text(line, margin, cursorY);
+  const out = doc.output('blob');
+  downloadBlob(out, filename);
+}
+
+/* admin helpers */
+function isAdmin(){ return sessionStorage.getItem('uzb_admin') === '1'; }
+
+/* expose helper to change admin password via console if needed */
+window.setAdminPwd = function(p){ if(!p) return alert('empty'); localStorage.setItem(KEY_ADMIN, JSON.stringify({hash:simpleHash(p)})); alert('Done'); };
+
+/* initial call to render grid */
+setTimeout(()=>renderGrid(),200);
+</script>
+</body>
+</html>
